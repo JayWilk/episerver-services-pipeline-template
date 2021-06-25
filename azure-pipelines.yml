@@ -1,0 +1,69 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - $(developmentBranchName)
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  developmentBranchName: 'develop'
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  npmDirectory: 'solution/Pure.MVC'
+ 
+
+steps:
+
+- task: Npm@1
+  inputs:
+    command: 'install'
+    workingDir: 'solution/Pure.MVC'
+
+- task: Npm@1
+  inputs:
+    command: 'custom'
+    workingDir: 'solution/Pure.MVC'
+    customCommand: 'npm run build'
+
+- task: NuGetToolInstaller@1
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(solution)'
+
+- task: MSBuild@1
+  inputs:
+    solution: '$(solution)'
+    platform: '$(buildPlatform)'
+    msbuildVersion: '16.0'
+    configuration: '$(buildConfiguration)'
+    clean: true
+    msbuildArguments: '/p:configuration=$(buildConfiguration);DeleteExistingFiles=True;PublishUrl=$(Agent.TempDirectory)/SitePackageContent/wwwroot;DeployOnBuild=True;WebPublishMethod=FileSystem;PublishProvider=FileSystem;DeployDefaultTarget=WebPublish'
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: '$(Agent.TempDirectory)/SitePackageContent'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/cms.app.$(Build.BuildId).nupkg'
+    replaceExistingArchive: true
+
+- task: VSTest@2
+  inputs:
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+    
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'DXC Deployment Package'
+    publishLocation: 'Container'
+    
